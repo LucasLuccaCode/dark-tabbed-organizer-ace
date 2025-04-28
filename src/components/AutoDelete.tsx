@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +18,6 @@ const AutoDelete = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedDays, setSelectedDays] = useState<number>(7);
 
-  // Carregar regras do localStorage quando o componente for montado
   useEffect(() => {
     const savedRules = localStorage.getItem("autoDeleteRules");
     if (savedRules) {
@@ -27,7 +25,6 @@ const AutoDelete = () => {
     }
   }, []);
 
-  // Salvar regras no localStorage quando forem atualizadas
   useEffect(() => {
     localStorage.setItem("autoDeleteRules", JSON.stringify(rules));
   }, [rules]);
@@ -43,7 +40,6 @@ const AutoDelete = () => {
     setRules([...rules, newRule]);
     setIsDialogOpen(false);
     
-    // Mostrar log do comando que seria executado
     const shellCommand = generateShellCommand(newRule);
     logShellCommand(newRule, shellCommand);
     
@@ -54,7 +50,6 @@ const AutoDelete = () => {
     const updatedRules = rules.map(rule => {
       if (rule.id === id) {
         const updatedRule = { ...rule, days };
-        // Atualizar o log de comando
         const shellCommand = generateShellCommand(updatedRule);
         logShellCommand(updatedRule, shellCommand);
         return updatedRule;
@@ -82,12 +77,10 @@ const AutoDelete = () => {
   };
 
   const generateShellCommand = (rule: AutoDeleteRule) => {
-    // No Windows seria algo como:
-    return `forfiles /p "${rule.folderPath}" /s /m *.* /d -${rule.days} /c "cmd /c del @path"`;
+    return `find "${rule.folderPath}" -type f -mtime +${rule.days} -exec rm {} \\;`;
   };
   
   const logShellCommand = (rule: AutoDeleteRule, command: string) => {
-    // Salvar no localStorage
     const logs = JSON.parse(localStorage.getItem("shellCommandLogs") || "[]");
     logs.push({
       timestamp: new Date().toISOString(),

@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, X } from "lucide-react";
@@ -10,22 +10,33 @@ interface FolderRulesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddRule: (rule: { folderPath: string; extensions: string[] }) => void;
+  onEditRule?: (rule: { id: number; folderPath: string; extensions: string[] }) => void;
+  editingRule?: { id: number; folderPath: string; extensions: string[] } | null;
 }
 
 const FolderRulesModal: React.FC<FolderRulesModalProps> = ({
   open,
   onOpenChange,
   onAddRule,
+  onEditRule,
+  editingRule,
 }) => {
   const [folderPath, setFolderPath] = useState('');
   const [extension, setExtension] = useState('');
   const [extensions, setExtensions] = useState<string[]>([]);
   const [step, setStep] = useState<'folder' | 'extensions'>('folder');
 
+  useEffect(() => {
+    if (editingRule) {
+      setFolderPath(editingRule.folderPath);
+      setExtensions(editingRule.extensions);
+      setStep('extensions');
+    }
+  }, [editingRule]);
+
   const handleAddExtension = () => {
     if (!extension.trim()) return;
     
-    // Adicionar ponto se não for fornecido
     let formattedExtension = extension.trim();
     if (!formattedExtension.startsWith('.')) {
       formattedExtension = `.${formattedExtension}`;
@@ -49,10 +60,18 @@ const FolderRulesModal: React.FC<FolderRulesModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (folderPath && extensions.length > 0) {
-      onAddRule({
-        folderPath,
-        extensions,
-      });
+      if (editingRule && onEditRule) {
+        onEditRule({
+          id: editingRule.id,
+          folderPath,
+          extensions,
+        });
+      } else {
+        onAddRule({
+          folderPath,
+          extensions,
+        });
+      }
       resetForm();
       onOpenChange(false);
     }
@@ -77,8 +96,19 @@ const FolderRulesModal: React.FC<FolderRulesModalProps> = ({
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
-            {step === 'folder' ? 'Selecione uma pasta destino' : 'Adicione extensões de arquivos'}
+            {editingRule 
+              ? 'Editar regra de organização' 
+              : step === 'folder' 
+                ? 'Selecione uma pasta destino' 
+                : 'Adicione extensões de arquivos'
+            }
           </DialogTitle>
+          <DialogDescription>
+            {step === 'folder' 
+              ? 'Navegue e selecione a pasta onde os arquivos serão organizados'
+              : 'Defina quais tipos de arquivo serão movidos para esta pasta'
+            }
+          </DialogDescription>
         </DialogHeader>
 
         {step === 'folder' ? (
@@ -144,7 +174,7 @@ const FolderRulesModal: React.FC<FolderRulesModalProps> = ({
                 type="submit" 
                 disabled={extensions.length === 0}
               >
-                Salvar Regra
+                {editingRule ? 'Salvar Alterações' : 'Salvar Regra'}
               </Button>
             </div>
           </form>
