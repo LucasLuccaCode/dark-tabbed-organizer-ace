@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Folder, Trash2 } from "lucide-react";
+import { Toaster } from "sonner";
 import RecentStats from "@/components/RecentStats";
 import FolderRules from "@/components/FolderRules";
 import AutoDelete from "@/components/AutoDelete";
@@ -47,6 +48,8 @@ const Index = () => {
           </TabsContent>
         </Tabs>
       </div>
+      
+      <Toaster position="top-right" />
     </div>
   );
 };

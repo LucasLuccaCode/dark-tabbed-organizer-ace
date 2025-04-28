@@ -1,8 +1,11 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Folder, Clock, Trash2 } from "lucide-react";
+import { Folder, Clock, Trash2, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import FileExplorer from "./FileExplorer";
 
 type AutoDeleteRule = {
   id: number;
@@ -12,61 +15,182 @@ type AutoDeleteRule = {
 };
 
 const AutoDelete = () => {
-  const [rules] = useState<AutoDeleteRule[]>([
-    {
-      id: 1,
-      folderPath: "C:\\Downloads",
-      days: 30,
+  const [rules, setRules] = useState<AutoDeleteRule[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<number>(7);
+
+  // Carregar regras do localStorage quando o componente for montado
+  useEffect(() => {
+    const savedRules = localStorage.getItem("autoDeleteRules");
+    if (savedRules) {
+      setRules(JSON.parse(savedRules));
+    }
+  }, []);
+
+  // Salvar regras no localStorage quando forem atualizadas
+  useEffect(() => {
+    localStorage.setItem("autoDeleteRules", JSON.stringify(rules));
+  }, [rules]);
+
+  const handleSelectFolder = (folderPath: string) => {
+    const newRule: AutoDeleteRule = {
+      id: Date.now(),
+      folderPath,
+      days: selectedDays,
       enabled: true,
-    },
-    {
-      id: 2,
-      folderPath: "C:\\Temp",
-      days: 7,
-      enabled: true,
-    },
-  ]);
+    };
+    
+    setRules([...rules, newRule]);
+    setIsDialogOpen(false);
+    
+    // Mostrar log do comando que seria executado
+    const shellCommand = generateShellCommand(newRule);
+    logShellCommand(newRule, shellCommand);
+    
+    toast.success("Regra de auto-limpeza adicionada com sucesso!");
+  };
+
+  const updateRuleDays = (id: number, days: number) => {
+    const updatedRules = rules.map(rule => {
+      if (rule.id === id) {
+        const updatedRule = { ...rule, days };
+        // Atualizar o log de comando
+        const shellCommand = generateShellCommand(updatedRule);
+        logShellCommand(updatedRule, shellCommand);
+        return updatedRule;
+      }
+      return rule;
+    });
+    
+    setRules(updatedRules);
+  };
+
+  const toggleRuleStatus = (id: number) => {
+    const updatedRules = rules.map(rule => {
+      if (rule.id === id) {
+        return { ...rule, enabled: !rule.enabled };
+      }
+      return rule;
+    });
+    
+    setRules(updatedRules);
+  };
+
+  const deleteRule = (id: number) => {
+    setRules(rules.filter(rule => rule.id !== id));
+    toast.success("Regra de auto-limpeza removida com sucesso!");
+  };
+
+  const generateShellCommand = (rule: AutoDeleteRule) => {
+    // No Windows seria algo como:
+    return `forfiles /p "${rule.folderPath}" /s /m *.* /d -${rule.days} /c "cmd /c del @path"`;
+  };
+  
+  const logShellCommand = (rule: AutoDeleteRule, command: string) => {
+    // Salvar no localStorage
+    const logs = JSON.parse(localStorage.getItem("shellCommandLogs") || "[]");
+    logs.push({
+      timestamp: new Date().toISOString(),
+      type: "autodelete",
+      rule,
+      command
+    });
+    localStorage.setItem("shellCommandLogs", JSON.stringify(logs));
+  };
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Auto-limpeza</h2>
-        <Button>
-          <Folder className="w-4 h-4 mr-2" />
+        <Button onClick={() => setIsDialogOpen(true)}>
+          <Plus className="w-4 h-4 mr-2" />
           Adicionar Pasta
         </Button>
       </div>
 
       <div className="space-y-3">
-        {rules.map((rule) => (
-          <div
-            key={rule.id}
-            className="bg-card p-4 rounded-xl flex items-center justify-between"
-          >
-            <div className="flex items-center space-x-4">
-              <div className="bg-destructive/10 p-2 rounded-lg">
-                <Trash2 className="w-6 h-6 text-destructive" />
-              </div>
-              <div>
-                <p className="font-medium">{rule.folderPath}</p>
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4 mr-1" />
-                  Deletar após {rule.days} dias
+        {rules.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Nenhuma regra de auto-limpeza configurada.
+            <p className="mt-2">
+              Adicione pastas para remover arquivos antigos automaticamente.
+            </p>
+          </div>
+        ) : (
+          rules.map((rule) => (
+            <div
+              key={rule.id}
+              className="bg-card p-4 rounded-xl flex items-center justify-between"
+            >
+              <div className="flex items-center space-x-4">
+                <div className={`p-2 rounded-lg ${rule.enabled ? 'bg-destructive/10' : 'bg-muted/30'}`}>
+                  <Trash2 className={`w-6 h-6 ${rule.enabled ? 'text-destructive' : 'text-muted-foreground'}`} />
+                </div>
+                <div>
+                  <p className="font-medium">{rule.folderPath}</p>
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Clock className="w-4 h-4 mr-1" />
+                    Deletar após {rule.days} dias
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <Input
+                    type="number"
+                    value={rule.days}
+                    onChange={(e) => updateRuleDays(rule.id, parseInt(e.target.value) || 1)}
+                    className="w-20 text-center"
+                    min={1}
+                  />
+                  <span className="text-sm text-muted-foreground">dias</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => toggleRuleStatus(rule.id)}
+                  className={rule.enabled ? "" : "opacity-50"}
+                >
+                  {rule.enabled ? (
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  ) : (
+                    <Trash2 className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => deleteRule(rule.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <Input
-                type="number"
-                value={rule.days}
-                className="w-20 text-center"
-                min={1}
-              />
-              <span className="text-sm text-muted-foreground">dias</span>
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Selecionar pasta para auto-limpeza</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <span>Deletar arquivos mais antigos que</span>
+              <Input 
+                type="number" 
+                value={selectedDays} 
+                onChange={(e) => setSelectedDays(parseInt(e.target.value) || 7)} 
+                className="w-20 text-center" 
+                min={1} 
+              />
+              <span>dias</span>
+            </div>
+            <FileExplorer onSelectFolder={handleSelectFolder} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
